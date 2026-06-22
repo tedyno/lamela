@@ -1,0 +1,549 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lamelová stěna – 3D návrh</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=Space+Mono:wght@400;700&display=swap');
+
+  :root{
+    --paper:#E8E5DC; --paper-2:#DEDACE;
+    --ink:#211E1A; --ink-soft:#5A554C;
+    --stage:#17130F; --stage-2:#221C16;
+    --varnish:#C2812E; --varnish-dim:#9a6824;
+    --blue:#7C97A8;
+    --line:rgba(33,30,26,.14); --line-strong:rgba(33,30,26,.28);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{-webkit-text-size-adjust:100%}
+  body{font-family:'Inter',system-ui,sans-serif;background:var(--paper);color:var(--ink);line-height:1.45;min-height:100vh}
+  .wrap{max-width:1180px;margin:0 auto;padding:28px 20px 60px}
+
+  header.top{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;border-bottom:2px solid var(--ink);padding-bottom:14px;margin-bottom:22px}
+  header.top h1{font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:clamp(22px,4vw,32px);letter-spacing:-.02em;line-height:1}
+  header.top .sub{font-family:'Space Mono',monospace;font-size:12px;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.08em}
+
+  .layout{display:grid;grid-template-columns:1fr 340px;gap:22px;align-items:start}
+  @media(max-width:860px){.layout{grid-template-columns:1fr}}
+
+  .stage{background:radial-gradient(120% 90% at 50% 0%, var(--stage-2), var(--stage) 70%);border-radius:4px;padding:14px;position:relative;overflow:hidden;box-shadow:inset 0 0 0 1px rgba(255,255,255,.04),0 10px 30px rgba(0,0,0,.18);order:1}
+  @media(max-width:860px){.stage{order:0}}
+
+  .stagebar{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+  .stagebar .tag{font-family:'Space Mono',monospace;font-size:10px;letter-spacing:.14em;color:rgba(255,255,255,.4);text-transform:uppercase}
+  .vtoggle{display:flex;border:1px solid rgba(255,255,255,.16);border-radius:4px;overflow:hidden}
+  .vtoggle button{border:none;background:transparent;color:rgba(255,255,255,.55);font-family:'Space Grotesk',sans-serif;font-size:11px;font-weight:600;letter-spacing:.04em;padding:6px 12px;cursor:pointer}
+  .vtoggle button.active{background:var(--varnish);color:#231a0c}
+
+  .subviews{display:flex;gap:6px;margin-bottom:10px}
+  .subviews button{flex:1;border:1px solid rgba(255,255,255,.16);background:transparent;color:rgba(255,255,255,.6);font-family:'Space Grotesk',sans-serif;font-size:11px;font-weight:600;letter-spacing:.03em;padding:7px 4px;border-radius:4px;cursor:pointer}
+  .subviews button.active{background:rgba(255,255,255,.12);color:#fff;border-color:rgba(255,255,255,.3)}
+
+  .viewport{position:relative;width:100%;aspect-ratio:600/420;border-radius:3px;overflow:hidden}
+  #gl{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none;cursor:grab}
+  #gl:active{cursor:grabbing}
+  svg.scene{position:absolute;inset:0;width:100%;height:100%}
+  .hint{position:absolute;left:12px;bottom:10px;font-family:'Space Mono',monospace;font-size:10px;color:rgba(255,255,255,.38);letter-spacing:.04em;pointer-events:none}
+  .hidden{display:none!important}
+
+  .panel{background:var(--paper-2);border:1px solid var(--line-strong);border-radius:4px;padding:18px 18px 20px}
+  .panel + .panel{margin-top:16px}
+  .panel h2{font-family:'Space Grotesk',sans-serif;font-size:12px;text-transform:uppercase;letter-spacing:.12em;color:var(--ink-soft);margin-bottom:14px;display:flex;align-items:center;gap:8px}
+  .panel h2::before{content:"";width:18px;height:2px;background:var(--varnish);display:inline-block}
+
+  .ctrl{margin-bottom:15px}.ctrl:last-child{margin-bottom:0}
+  .ctrl .row{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px}
+  .ctrl label{font-size:13px;font-weight:500}
+  .ctrl .val{font-family:'Space Mono',monospace;font-size:13px;font-weight:700;color:var(--ink);background:var(--paper);padding:1px 7px;border-radius:3px;border:1px solid var(--line)}
+
+  input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:3px;border-radius:2px;background:var(--line-strong);outline:none}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:18px;height:18px;border-radius:50%;background:var(--varnish);cursor:pointer;border:3px solid var(--paper-2);box-shadow:0 0 0 1px var(--varnish-dim)}
+  input[type=range]::-moz-range-thumb{width:18px;height:18px;border-radius:50%;background:var(--varnish);cursor:pointer;border:3px solid var(--paper-2)}
+
+  .swatches{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+  .sw{cursor:pointer;border-radius:3px;overflow:hidden;border:2px solid transparent;transition:border-color .12s,transform .12s}
+  .sw:hover{transform:translateY(-1px)}.sw.active{border-color:var(--ink)}
+  .sw .chip{height:34px}
+  .sw .name{font-size:10px;text-align:center;padding:3px 2px;font-family:'Space Mono',monospace;letter-spacing:.02em;background:var(--paper);color:var(--ink-soft)}
+
+  .seg{display:flex;border:1px solid var(--line-strong);border-radius:4px;overflow:hidden}
+  .seg button{flex:1;border:none;background:var(--paper);font-family:'Inter',sans-serif;font-size:12px;font-weight:500;padding:9px 4px;cursor:pointer;color:var(--ink-soft)}
+  .seg button.active{background:var(--ink);color:var(--paper)}
+
+  .readout{background:var(--ink);color:var(--paper);border-radius:4px;padding:16px 18px;margin-top:16px}
+  .readout h2{color:rgba(255,255,255,.55)}.readout h2::before{background:var(--varnish)}
+  .stat{display:flex;justify-content:space-between;align-items:baseline;padding:7px 0;border-bottom:1px solid rgba(255,255,255,.1)}
+  .stat:last-child{border-bottom:none}
+  .stat .k{font-size:12px;color:rgba(255,255,255,.6)}
+  .stat .v{font-family:'Space Mono',monospace;font-size:14px;font-weight:700;color:#fff}
+  .stat .v.amber{color:var(--varnish)}
+
+  .copybtn{width:100%;margin-top:14px;font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:13px;letter-spacing:.02em;background:var(--varnish);color:#231a0c;border:none;border-radius:4px;padding:12px;cursor:pointer;transition:background .12s}
+  .copybtn:hover{background:#d9933b}.copybtn.done{background:#5b7b54;color:#fff}
+  .note{font-size:11.5px;color:var(--ink-soft);margin-top:14px;line-height:1.5}.note b{color:var(--ink)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <h1>Lamelová stěna</h1>
+    <span class="sub">3D návrh · žaluzie · šikmý strop</span>
+  </header>
+
+  <div class="layout">
+    <div class="stage">
+      <div class="stagebar">
+        <span class="tag" id="stageTag">3D · táhni pro otočení</span>
+        <div class="vtoggle" id="vtoggle">
+          <button data-v="3d" class="active">3D</button>
+          <button data-v="2d">Nákres</button>
+        </div>
+      </div>
+      <div class="subviews hidden" id="subviews">
+        <button data-p="front" class="active">Zepředu</button>
+        <button data-p="top">Shora</button>
+        <button data-p="side">Ze strany</button>
+      </div>
+      <div class="viewport">
+        <canvas id="gl"></canvas>
+        <svg class="scene hidden" id="scene" viewBox="0 0 600 420" preserveAspectRatio="xMidYMid meet"></svg>
+        <span class="hint" id="hint">táhni = otáčet · kolečko = zoom</span>
+      </div>
+    </div>
+
+    <div>
+      <div class="panel">
+        <h2>Rozměry místa</h2>
+        <div class="ctrl"><div class="row"><label>Šířka úseku</label><span class="val"><span id="vW">200</span> cm</span></div><input type="range" id="W" min="60" max="400" step="5" value="200"></div>
+        <div class="ctrl"><div class="row"><label>Výška – nižší hrana</label><span class="val"><span id="vHL">230</span> cm</span></div><input type="range" id="HL" min="150" max="320" step="2" value="230"></div>
+        <div class="ctrl"><div class="row"><label>Výška – vyšší hrana</label><span class="val"><span id="vHR">280</span> cm</span></div><input type="range" id="HR" min="150" max="340" step="2" value="280"></div>
+        <div class="ctrl"><div class="row"><label>Strana sklonu</label><span class="val" id="vSlope">vyšší vpravo</span></div>
+          <div class="seg" id="slope"><button data-s="L">Vyšší vlevo</button><button data-s="R" class="active">Vyšší vpravo</button></div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h2>Lamely</h2>
+        <div class="ctrl"><div class="row"><label>Šířka lamely (čelo)</label><span class="val"><span id="vSW">3</span> cm</span></div><input type="range" id="SW" min="2" max="8" step="0.5" value="3"></div>
+        <div class="ctrl"><div class="row"><label>Hloubka lamely</label><span class="val"><span id="vDEP">7</span> cm</span></div><input type="range" id="DEP" min="2" max="12" step="0.5" value="7"></div>
+        <div class="ctrl"><div class="row"><label>Mezera mezi lamelami</label><span class="val"><span id="vG">3</span> cm</span></div><input type="range" id="G" min="1" max="9" step="0.5" value="3"></div>
+        <div class="ctrl"><div class="row"><label>Natočení (žaluzie)</label><span class="val" id="vRot">35° doprava</span></div><input type="range" id="ROT" min="-75" max="75" step="5" value="35"></div>
+        <div class="ctrl"><div class="row" style="margin-bottom:9px"><label>Dekor</label></div><div class="swatches" id="swatches"></div></div>
+      </div>
+
+      <div class="readout">
+        <h2>Pro truhláře</h2>
+        <div class="stat"><span class="k">Počet lamel</span><span class="v amber" id="oN">–</span></div>
+        <div class="stat"><span class="k">Průhled (zepředu)</span><span class="v" id="oSee">–</span></div>
+        <div class="stat"><span class="k">Nejdelší / nejkratší</span><span class="v" id="oH">–</span></div>
+        <div class="stat"><span class="k">Skutečná šířka stěny</span><span class="v" id="oWeff">–</span></div>
+        <div class="stat"><span class="k">Spotřeba lamel</span><span class="v" id="oBm">–</span></div>
+        <button class="copybtn" id="copy">Kopírovat zadání</button>
+        <p class="note">Natočené lamely se kotví na zadní nosnou lištu pod úhlem. Nahoře <b>−0,5 cm</b> rezerva, krajní kusy se přiříznou k rámu. Hodnoty orientační — truhlář zaměří na místě.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+const PRESETS = [
+  {id:'dub',   name:'Dub přír.', top:'#CBA46C', bot:'#A87E45'},
+  {id:'wotan', name:'Dub Wotan', top:'#AD895B', bot:'#84623B'},
+  {id:'orech', name:'Ořech',     top:'#6E4D35', bot:'#48301F'},
+  {id:'antra', name:'Antracit',  top:'#42454A', bot:'#2C2F33'},
+  {id:'cerna', name:'Černá',     top:'#2A2A2A', bot:'#171717'},
+  {id:'bila',  name:'Bílá',      top:'#EFEDE7', bot:'#D7D2C7'},
+];
+const state = { W:200, HL:230, HR:280, slope:'R', SW:3, DEP:7, G:3, rot:35, preset:'dub' };
+const CLEAR = 0.5;
+
+/* ---------- helpers ---------- */
+function ceilingAt(x){
+  const {W,HL,HR,slope}=state;
+  const lo=Math.min(HL,HR), hi=Math.max(HL,HR);
+  const t = W>0 ? x/W : 0;
+  return slope==='R' ? (lo+(hi-lo)*t) : (hi-(hi-lo)*t);
+}
+function compute(){
+  const {W,SW,G}=state;
+  const pitch=SW+G;
+  const n=Math.max(1,Math.floor((W+G)/pitch));
+  const used=n*SW+(n-1)*G;
+  const offset=(W-used)/2;
+  const slats=[]; let totalLen=0;
+  for(let i=0;i<n;i++){
+    const x0=offset+i*pitch, xc=x0+SW/2;
+    const h=Math.max(0,ceilingAt(xc)-CLEAR);
+    slats.push({x0,xc,w:SW,h}); totalLen+=h;
+  }
+  const hs=slats.map(s=>s.h);
+  return {n,used,offset,slats,hMax:Math.max(...hs),hMin:Math.min(...hs),bm:totalLen/100};
+}
+function darkenHex(hex,amt){
+  const n=parseInt(hex.slice(1),16);
+  let r=(n>>16)&255,g=(n>>8)&255,b=n&255;
+  r=Math.round(r*(1-amt));g=Math.round(g*(1-amt));b=Math.round(b*(1-amt));
+  return (r<<16)|(g<<8)|b;
+}
+const esc=n=>Number.isInteger(n)?n:Math.round(n*10)/10;
+
+/* ---------- swatches & controls ---------- */
+const swWrap=document.getElementById('swatches');
+PRESETS.forEach(p=>{
+  const d=document.createElement('div');
+  d.className='sw'+(p.id===state.preset?' active':'');
+  d.dataset.id=p.id;
+  d.innerHTML=`<div class="chip" style="background:linear-gradient(160deg,${p.top},${p.bot})"></div><div class="name">${p.name}</div>`;
+  d.onclick=()=>{state.preset=p.id;document.querySelectorAll('.sw').forEach(s=>s.classList.toggle('active',s.dataset.id===p.id));render();};
+  swWrap.appendChild(d);
+});
+function bind(id,key,labelId,fmt){
+  const el=document.getElementById(id);
+  el.addEventListener('input',()=>{state[key]=parseFloat(el.value);document.getElementById(labelId).textContent=fmt?fmt(state[key]):state[key];render();});
+}
+bind('W','W','vW');bind('HL','HL','vHL');bind('HR','HR','vHR');
+bind('SW','SW','vSW',v=>v.toString().replace('.',','));
+bind('DEP','DEP','vDEP',v=>v.toString().replace('.',','));
+bind('G','G','vG',v=>v.toString().replace('.',','));
+document.getElementById('ROT').addEventListener('input',e=>{
+  state.rot=parseFloat(e.target.value);
+  const a=Math.abs(state.rot);
+  document.getElementById('vRot').textContent=state.rot===0?'rovně (čelem)':`${a}° ${state.rot>0?'doprava':'doleva'}`;
+  render();
+});
+document.querySelectorAll('#slope button').forEach(b=>{
+  b.onclick=()=>{state.slope=b.dataset.s;document.querySelectorAll('#slope button').forEach(x=>x.classList.toggle('active',x===b));document.getElementById('vSlope').textContent=state.slope==='R'?'vyšší vpravo':'vyšší vlevo';render();};
+});
+
+/* ---------- view toggle ---------- */
+let view='3d', plane2d='front';
+document.querySelectorAll('#vtoggle button').forEach(b=>{
+  b.onclick=()=>{
+    view=b.dataset.v;
+    document.querySelectorAll('#vtoggle button').forEach(x=>x.classList.toggle('active',x===b));
+    const is3=view==='3d';
+    document.getElementById('gl').classList.toggle('hidden',!is3);
+    document.getElementById('scene').classList.toggle('hidden',is3);
+    document.getElementById('hint').classList.toggle('hidden',!is3);
+    document.getElementById('subviews').classList.toggle('hidden',is3);
+    document.getElementById('stageTag').textContent=is3?'3D · táhni pro otočení':'technický nákres · cm';
+    if(is3){resize3D();}
+    render();
+  };
+});
+document.querySelectorAll('#subviews button').forEach(b=>{
+  b.onclick=()=>{
+    plane2d=b.dataset.p;
+    document.querySelectorAll('#subviews button').forEach(x=>x.classList.toggle('active',x===b));
+    render();
+  };
+});
+
+/* ---------- 2D nákres (SVG) ---------- */
+const scene=document.getElementById('scene');
+const BLUE='#9DB4C2';
+function woodDefs(p){
+  const e=darkenHex(p.bot,0.42);
+  const edge=`rgb(${(e>>16)&255},${(e>>8)&255},${e&255})`;
+  const defs=`<defs><linearGradient id="wood" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="${p.top}"/><stop offset="0.5" stop-color="${p.bot}"/><stop offset="1" stop-color="${p.top}"/></linearGradient></defs>`;
+  return {defs,edge};
+}
+function fit(cw,ch,l,r,t,b){
+  const s=Math.min((600-l-r)/cw,(420-t-b)/ch);
+  const ox=l+((600-l-r)-cw*s)/2, oy=t+((420-t-b)-ch*s)/2;
+  return {s,ox,oy};
+}
+function label(x,y,txt){return `<text x="${x}" y="${y}" fill="rgba(255,255,255,.5)" font-size="11" font-family="'Space Grotesk',sans-serif" font-weight="600" letter-spacing="1.2">${txt}</text>`;}
+function dimTxt(x,y,txt,rot){const tr=rot?` transform="rotate(${rot} ${x} ${y})"`:'';return `<text x="${x}" y="${y}" fill="${BLUE}" font-size="10" text-anchor="middle" font-family="'Space Mono',monospace"${tr}>${txt}</text>`;}
+
+function buildSVG(c){
+  if(plane2d==='top') return scene.innerHTML=drawTop(c);
+  if(plane2d==='side') return scene.innerHTML=drawSide(c);
+  scene.innerHTML=drawFront(c);
+}
+
+/* FRONT — pohled zepředu */
+function drawFront(c){
+  const {W,HL,HR}=state, maxH=Math.max(HL,HR);
+  const p=PRESETS.find(x=>x.id===state.preset), {defs,edge}=woodDefs(p);
+  const F=fit(W,maxH,58,58,48,46);
+  const floorY=F.oy+maxH*F.s, X=x=>F.ox+x*F.s, Y=h=>floorY-h*F.s;
+  const phi=state.rot*Math.PI/180, cosP=Math.abs(Math.cos(phi)), sinP=Math.abs(Math.sin(phi));
+  const dir=state.rot>=0?1:-1, faceW=state.SW*cosP, edgeW=state.DEP*sinP;
+
+  let s=defs+label(14,24,'POHLED ZEPŘEDU');
+  s+=`<clipPath id="op"><polygon points="${X(0)},${floorY} ${X(0)},${Y(ceilingAt(0))} ${X(W)},${Y(ceilingAt(W))} ${X(W)},${floorY}"/></clipPath>`;
+  s+=`<line x1="${X(-4)}" y1="${floorY}" x2="${X(W+4)}" y2="${floorY}" stroke="rgba(255,255,255,.25)" stroke-width="1"/>`;
+  s+=`<line x1="${X(0)}" y1="${Y(ceilingAt(0))}" x2="${X(W)}" y2="${Y(ceilingAt(W))}" stroke="${BLUE}" stroke-width="1" stroke-dasharray="4 3"/>`;
+  let g='';
+  c.slats.forEach(sl=>{
+    const ty=Y(sl.h), hpx=sl.h*F.s, total=faceW+edgeW, leftX=sl.xc-total/2;
+    let fX,eX; if(dir>0){fX=leftX;eX=leftX+faceW;}else{eX=leftX;fX=leftX+edgeW;}
+    if(edgeW>0.01) g+=`<rect x="${X(eX)}" y="${ty}" width="${edgeW*F.s}" height="${hpx}" fill="${edge}"/>`;
+    if(faceW>0.01) g+=`<rect x="${X(fX)}" y="${ty}" width="${faceW*F.s}" height="${hpx}" fill="url(#wood)"/>`;
+    const seam=dir>0?fX+faceW:fX;
+    g+=`<rect x="${X(seam)-0.5}" y="${ty}" width="1" height="${hpx}" fill="rgba(255,255,255,.18)"/>`;
+  });
+  s+=`<g clip-path="url(#op)">${g}</g>`;
+  // width dim
+  const dy=floorY+20;
+  s+=`<line x1="${X(0)}" y1="${dy}" x2="${X(W)}" y2="${dy}" stroke="${BLUE}" stroke-width="0.8"/>`;
+  s+=`<line x1="${X(0)}" y1="${dy-4}" x2="${X(0)}" y2="${dy+4}" stroke="${BLUE}" stroke-width="0.8"/><line x1="${X(W)}" y1="${dy-4}" x2="${X(W)}" y2="${dy+4}" stroke="${BLUE}" stroke-width="0.8"/>`;
+  s+=dimTxt(X(W/2),dy+14,`${esc(W)} cm`);
+  // heights
+  const lx=X(0)-16;
+  s+=`<line x1="${lx}" y1="${floorY}" x2="${lx}" y2="${Y(HL)}" stroke="${BLUE}" stroke-width="0.8"/>`+dimTxt(lx-5,Y(HL/2),`${esc(HL)} cm`,-90);
+  const rx=X(W)+16;
+  s+=`<line x1="${rx}" y1="${floorY}" x2="${rx}" y2="${Y(HR)}" stroke="${BLUE}" stroke-width="0.8"/>`+dimTxt(rx+5,Y(HR/2),`${esc(HR)} cm`,90);
+  return s;
+}
+
+/* TOP — půdorys (shora), to scale, shows rotation */
+function drawTop(c){
+  const {W,SW,DEP}=state;
+  const p=PRESETS.find(x=>x.id===state.preset), {defs,edge}=woodDefs(p);
+  const phi=state.rot*Math.PI/180;
+  const depExtent=Math.abs(SW*Math.sin(phi))+Math.abs(DEP*Math.cos(phi));
+  const ch=Math.max(depExtent*1.1, DEP);
+  const F=fit(W,ch,46,46,52,64);
+  const X=x=>F.ox+x*F.s, midZ=F.oy+ch*F.s/2, Z=z=>midZ - z*F.s;
+  const co=Math.cos(phi), si=Math.sin(phi);
+  function quad(xc){
+    const pts=[[-SW/2,-DEP/2],[SW/2,-DEP/2],[SW/2,DEP/2],[-SW/2,DEP/2]]
+      .map(([px,pz])=>[X(xc+px*co-pz*si), Z(px*si+pz*co)]);
+    return pts.map(p2=>p2.join(',')).join(' ');
+  }
+  let s=defs+label(14,24,'PŮDORYS (shora)');
+  // viewer direction note (front of room = bottom)
+  const by=F.oy+ch*F.s+30;
+  s+=`<text x="300" y="${by+14}" fill="rgba(255,255,255,.45)" font-size="10" text-anchor="middle" font-family="'Space Mono',monospace">↑ odsud koukáš (čelní pohled)</text>`;
+  // lamely from above
+  c.slats.forEach(sl=>{
+    s+=`<polygon points="${quad(sl.xc)}" fill="url(#wood)" stroke="${edge}" stroke-width="0.6"/>`;
+  });
+  // width dim
+  const dy=F.oy+ch*F.s+14;
+  s+=`<line x1="${X(0)}" y1="${dy}" x2="${X(W)}" y2="${dy}" stroke="${BLUE}" stroke-width="0.8"/>`;
+  s+=`<line x1="${X(0)}" y1="${dy-4}" x2="${X(0)}" y2="${dy+4}" stroke="${BLUE}" stroke-width="0.8"/><line x1="${X(W)}" y1="${dy-4}" x2="${X(W)}" y2="${dy+4}" stroke="${BLUE}" stroke-width="0.8"/>`;
+  s+=dimTxt(X(W/2),dy-5,`${esc(W)} cm · ${c.n}× lamela`);
+  // angle callout on first slat
+  const sl0=c.slats[0];
+  if(sl0){
+    const cx=X(sl0.xc), cy=Z(0), L=Math.min(60,SW*F.s*6+34);
+    // room-face reference (horizontal) + lamela face direction
+    s+=`<line x1="${cx}" y1="${cy}" x2="${cx+L}" y2="${cy}" stroke="rgba(255,255,255,.35)" stroke-width="0.8" stroke-dasharray="3 2"/>`;
+    s+=`<line x1="${cx}" y1="${cy}" x2="${cx+L*Math.cos(phi)}" y2="${cy - L*Math.sin(phi)}" stroke="${BLUE}" stroke-width="1"/>`;
+    s+=dimTxt(cx+L+6, cy+ (state.rot>=0?-4:12), `${Math.abs(state.rot)}°`);
+  }
+  s+=`<text x="14" y="404" fill="rgba(255,255,255,.4)" font-size="9.5" font-family="'Space Mono',monospace">čelo ${esc(SW)} · hloubka ${esc(DEP)} · mezera ${esc(state.G)} cm</text>`;
+  return s;
+}
+
+/* SIDE — ze strany (řez), depth + height + ceiling range + rail */
+function drawSide(c){
+  const {DEP,HL,HR}=state, maxH=Math.max(HL,HR), minH=Math.min(HL,HR);
+  const p=PRESETS.find(x=>x.id===state.preset), {defs}=woodDefs(p);
+  const F=fit(Math.max(DEP*4,40), maxH, 70,70,48,46); // give horizontal breathing room
+  const cxC=300; // center horizontally
+  const floorY=F.oy+maxH*F.s, Y=h=>floorY-h*F.s;
+  const wpx=DEP*F.s, railpx=Math.max(3,1.4*F.s);
+  const lamX=cxC - wpx/2, lamTop=Y(minH-CLEAR);
+  let s=defs+label(14,24,'ZE STRANY (řez)');
+  // floor
+  s+=`<line x1="${cxC-90}" y1="${floorY}" x2="${cxC+90}" y2="${floorY}" stroke="rgba(255,255,255,.25)" stroke-width="1"/>`;
+  // ceiling range band (slope runs into the page → shown as min..max)
+  s+=`<line x1="${cxC-90}" y1="${Y(maxH)}" x2="${cxC+90}" y2="${Y(maxH)}" stroke="${BLUE}" stroke-width="1" stroke-dasharray="4 3"/>`;
+  s+=`<line x1="${cxC-90}" y1="${Y(minH)}" x2="${cxC+90}" y2="${Y(minH)}" stroke="${BLUE}" stroke-width="0.7" stroke-dasharray="2 3" opacity="0.7"/>`;
+  s+=dimTxt(cxC+70,Y((minH+maxH)/2),`strop ${esc(minH)}–${esc(maxH)}`,0);
+  // back rail (nosná lišta) behind lamela
+  s+=`<rect x="${lamX-railpx-1}" y="${Y(minH-CLEAR)}" width="${railpx}" height="${(minH-CLEAR)*F.s}" fill="rgba(255,255,255,.22)"/>`;
+  s+=`<text x="${lamX-railpx-6}" y="${Y((minH-CLEAR)/2)}" fill="rgba(255,255,255,.5)" font-size="9.5" text-anchor="end" font-family="'Space Mono',monospace" transform="rotate(-90 ${lamX-railpx-6} ${Y((minH-CLEAR)/2)})">nosná lišta</text>`;
+  // lamela section (depth)
+  s+=`<rect x="${lamX}" y="${lamTop}" width="${wpx}" height="${(minH-CLEAR)*F.s}" fill="url(#wood)"/>`;
+  // depth dim
+  const dy=floorY+20;
+  s+=`<line x1="${lamX}" y1="${dy}" x2="${lamX+wpx}" y2="${dy}" stroke="${BLUE}" stroke-width="0.8"/>`;
+  s+=`<line x1="${lamX}" y1="${dy-4}" x2="${lamX}" y2="${dy+4}" stroke="${BLUE}" stroke-width="0.8"/><line x1="${lamX+wpx}" y1="${dy-4}" x2="${lamX+wpx}" y2="${dy+4}" stroke="${BLUE}" stroke-width="0.8"/>`;
+  s+=dimTxt((lamX+lamX+wpx)/2, dy+14, `hloubka ${esc(DEP)} cm`);
+  // height dim
+  const hx=lamX+wpx+24;
+  s+=`<line x1="${hx}" y1="${floorY}" x2="${hx}" y2="${Y(minH-CLEAR)}" stroke="${BLUE}" stroke-width="0.8"/>`;
+  s+=`<line x1="${hx-4}" y1="${floorY}" x2="${hx+4}" y2="${floorY}" stroke="${BLUE}" stroke-width="0.8"/><line x1="${hx-4}" y1="${Y(minH-CLEAR)}" x2="${hx+4}" y2="${Y(minH-CLEAR)}" stroke="${BLUE}" stroke-width="0.8"/>`;
+  s+=dimTxt(hx+6, Y((minH-CLEAR)/2), `výška lamel`,90);
+  s+=`<text x="14" y="404" fill="rgba(255,255,255,.4)" font-size="9.5" font-family="'Space Mono',monospace">lamely natočené ${Math.abs(state.rot)}° (viz půdorys) · −0,5 cm pod strop</text>`;
+  return s;
+}
+
+/* ---------- 3D (three.js) ---------- */
+let THREE_OK=false, renderer,scene3,camera,slatGroup,ceilingMesh,floorMesh;
+let cam={az:-0.6, pol:1.12, r:5, tAz:-0.6, tPol:1.12, tR:5, ty:1.3};
+function initThree(){
+  try{
+    const canvas=document.getElementById('gl');
+    renderer=new THREE.WebGLRenderer({canvas,antialias:true,alpha:true});
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio,2));
+    scene3=new THREE.Scene();
+    camera=new THREE.PerspectiveCamera(45,1.43,0.01,100);
+    scene3.add(new THREE.HemisphereLight(0xffffff,0x3a3530,0.7));
+    const key=new THREE.DirectionalLight(0xfff3e0,0.85); key.position.set(3,6,4); scene3.add(key);
+    const fill=new THREE.DirectionalLight(0xcfe0ff,0.3); fill.position.set(-4,2,-3); scene3.add(fill);
+    scene3.add(new THREE.AmbientLight(0xffffff,0.18));
+    // floor
+    floorMesh=new THREE.Mesh(new THREE.PlaneGeometry(40,40),new THREE.MeshStandardMaterial({color:0x2a2622,roughness:0.95}));
+    floorMesh.rotation.x=-Math.PI/2; floorMesh.position.y=-0.001; scene3.add(floorMesh);
+    slatGroup=new THREE.Group(); scene3.add(slatGroup);
+    THREE_OK=true;
+    resize3D();
+    animate();
+  }catch(e){
+    THREE_OK=false;
+    // fall back to nákres
+    document.querySelector('#vtoggle button[data-v="2d"]').click();
+    document.getElementById('vtoggle').style.display='none';
+  }
+}
+function clearGroup(g){
+  while(g.children.length){const m=g.children.pop();if(m.geometry)m.geometry.dispose();if(m.material){(Array.isArray(m.material)?m.material:[m.material]).forEach(x=>x.dispose());}}
+}
+function build3D(c){
+  if(!THREE_OK) return;
+  const p=PRESETS.find(x=>x.id===state.preset);
+  const faceMat=new THREE.MeshStandardMaterial({color:parseInt(p.top.slice(1),16),roughness:0.55});
+  const sideMat=new THREE.MeshStandardMaterial({color:darkenHex(p.bot,0.30),roughness:0.62});
+  const capMat =new THREE.MeshStandardMaterial({color:parseInt(p.bot.slice(1),16),roughness:0.6});
+  const mats=[sideMat,sideMat,capMat,capMat,faceMat,faceMat]; // px,nx,py,ny,pz,nz
+  const phi=state.rot*Math.PI/180;
+  const W=state.W;
+  clearGroup(slatGroup);
+  c.slats.forEach(sl=>{
+    const h=sl.h/100;
+    if(h<=0) return;
+    const geo=new THREE.BoxGeometry(state.SW/100, h, state.DEP/100);
+    const m=new THREE.Mesh(geo,mats);
+    m.position.set((sl.xc-W/2)/100, h/2, 0);
+    m.rotation.y=phi;
+    slatGroup.add(m);
+  });
+  // ceiling slab (semi-transparent), tilted to follow slope
+  if(ceilingMesh){scene3.remove(ceilingMesh);(ceilingMesh.children||[]).forEach(o=>{if(o.geometry)o.geometry.dispose();if(o.material)o.material.dispose();});}
+  const leftH=ceilingAt(0), rightH=ceilingAt(W);
+  const beta=Math.asin(Math.max(-0.99,Math.min(0.99,(rightH-leftH)/W)));
+  const slab=new THREE.Group();
+  const plane=new THREE.Mesh(new THREE.PlaneGeometry(W/100/Math.cos(beta), 0.9),
+    new THREE.MeshStandardMaterial({color:0xece7dd,roughness:1,transparent:true,opacity:0.32,side:THREE.DoubleSide}));
+  plane.rotation.x=-Math.PI/2; slab.add(plane);
+  slab.rotation.z=beta;
+  slab.position.set(0,((leftH+rightH)/2)/100,0);
+  ceilingMesh=slab; scene3.add(ceilingMesh);
+
+  // recenter camera target height
+  cam.ty=((leftH+rightH)/2)/100*0.55 + 0.4;
+}
+function resize3D(){
+  if(!THREE_OK) return;
+  const c=document.getElementById('gl');
+  const w=c.clientWidth||600, h=c.clientHeight||420;
+  renderer.setSize(w,h,false);
+  camera.aspect=w/h; camera.updateProjectionMatrix();
+}
+let fitted=false;
+function fitCamera(){
+  if(fitted) return;
+  const span=Math.max(state.W,Math.max(state.HL,state.HR))/100;
+  cam.tR=span*1.5+0.8; cam.r=cam.tR;
+  fitted=true;
+}
+function animate(){
+  requestAnimationFrame(animate);
+  if(!THREE_OK) return;
+  cam.az+=(cam.tAz-cam.az)*0.12;
+  cam.pol+=(cam.tPol-cam.pol)*0.12;
+  cam.r+=(cam.tR-cam.r)*0.12;
+  const ty=cam.ty;
+  camera.position.set(
+    Math.sin(cam.pol)*Math.sin(cam.az)*cam.r,
+    Math.cos(cam.pol)*cam.r+ty*0,
+    Math.sin(cam.pol)*Math.cos(cam.az)*cam.r
+  );
+  camera.position.y=Math.cos(cam.pol)*cam.r;
+  camera.position.y+=ty;
+  camera.lookAt(0,ty,0);
+  renderer.render(scene3,camera);
+}
+/* pointer / touch orbit */
+(function(){
+  const el=document.getElementById('gl');
+  let dragging=false,lx=0,ly=0,pinch=0;
+  const down=(x,y)=>{dragging=true;lx=x;ly=y;};
+  const move=(x,y)=>{if(!dragging)return;cam.tAz-=(x-lx)*0.006;cam.tPol-=(y-ly)*0.006;cam.tPol=Math.max(0.2,Math.min(1.5,cam.tPol));lx=x;ly=y;};
+  const up=()=>{dragging=false;};
+  el.addEventListener('mousedown',e=>down(e.clientX,e.clientY));
+  window.addEventListener('mousemove',e=>move(e.clientX,e.clientY));
+  window.addEventListener('mouseup',up);
+  el.addEventListener('wheel',e=>{e.preventDefault();cam.tR=Math.max(0.8,Math.min(20,cam.tR*(1+e.deltaY*0.0012)));},{passive:false});
+  el.addEventListener('touchstart',e=>{
+    if(e.touches.length===1)down(e.touches[0].clientX,e.touches[0].clientY);
+    else if(e.touches.length===2){pinch=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY);}
+  },{passive:true});
+  el.addEventListener('touchmove',e=>{
+    if(e.touches.length===1)move(e.touches[0].clientX,e.touches[0].clientY);
+    else if(e.touches.length===2){const d=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY);if(pinch)cam.tR=Math.max(0.8,Math.min(20,cam.tR*(pinch/d)));pinch=d;}
+  },{passive:true});
+  el.addEventListener('touchend',()=>{dragging=false;pinch=0;});
+})();
+window.addEventListener('resize',resize3D);
+
+/* ---------- main render ---------- */
+function render(){
+  const c=compute();
+  if(view==='2d') buildSVG(c);
+  if(THREE_OK) build3D(c);
+  fitCamera();
+  // readouts
+  const phi=state.rot*Math.PI/180;
+  const faceW=state.SW*Math.abs(Math.cos(phi)), edgeW=state.DEP*Math.abs(Math.sin(phi));
+  const covered=Math.min(faceW+edgeW,state.SW+state.G);
+  const seePct=Math.max(0,Math.round((1-covered/(state.SW+state.G))*100));
+  document.getElementById('oN').textContent=c.n+'×';
+  document.getElementById('oSee').textContent=seePct+' %';
+  document.getElementById('oH').textContent=`${esc(c.hMax)} / ${esc(c.hMin)} cm`;
+  document.getElementById('oWeff').textContent=`${esc(c.used)} cm`;
+  document.getElementById('oBm').textContent=`${c.bm.toFixed(2).replace('.',',')} bm`;
+}
+
+/* ---------- copy ---------- */
+document.getElementById('copy').addEventListener('click',()=>{
+  const c=compute(),p=PRESETS.find(x=>x.id===state.preset);
+  const txt=
+`Poptávka – lamelová dělící stěna na míru (šikmý strop, natočené lamely)
+
+Dekor:               ${p.name}
+Šířka úseku:         ${esc(state.W)} cm
+Výška nižší hrana:   ${esc(state.HL)} cm
+Výška vyšší hrana:   ${esc(state.HR)} cm
+Sklon stropu:        ${state.slope==='R'?'vyšší vpravo':'vyšší vlevo'}
+
+Lamela (čelo):       ${esc(state.SW)} cm
+Hloubka lamely:      ${esc(state.DEP)} cm
+Mezera:              ${esc(state.G)} cm
+Natočení (žaluzie):  ${state.rot===0?'rovně, čelem (0°)':Math.abs(state.rot)+'° '+(state.rot>0?'doprava':'doleva')}
+Počet lamel:         ${c.n}×
+Délka lamel:         ${esc(c.hMax)} až ${esc(c.hMin)} cm (seříznuté dle sklonu)
+Skutečná šířka:      ${esc(c.used)} cm
+Spotřeba lamel:      ${c.bm.toFixed(2).replace('.',',')} bm
+Rezerva pod stropem: 0,5 cm
+
+Pozn.: lamely natočené kolem svislé osy (jako žaluzie), kotvené na zadní lištu pod úhlem.
+Rozměry orientační, prosím o zaměření na místě a cenovou nabídku.`;
+  const btn=document.getElementById('copy');
+  navigator.clipboard.writeText(txt).then(()=>{btn.textContent='Zkopírováno ✓';btn.classList.add('done');setTimeout(()=>{btn.textContent='Kopírovat zadání';btn.classList.remove('done');},1800);}).catch(()=>{btn.textContent='Zkopíruj ručně (Ctrl+C)';});
+});
+
+/* ---------- boot ---------- */
+initThree();
+render();
+</script>
+</body>
+</html>
