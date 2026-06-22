@@ -170,7 +170,9 @@
   </div>
 </div>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<!-- Three.js je hostovaný lokálně (vendor/three.min.js), doplní ho build pipeline.
+     Když chybí (např. při otevření souboru lokálně bez buildu), appka se gracefully přepne na 2D nákres. -->
+<script src="vendor/three.min.js"></script>
 <script>
 const PRESETS = [
   {id:'dub',   name:'Dub přír.', top:'#CBA46C', bot:'#A87E45'},

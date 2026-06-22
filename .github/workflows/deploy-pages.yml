@@ -33,6 +33,14 @@ jobs:
           # Automatically enable GitHub Pages for the repo if it isn't yet
           enablement: true
 
+      - name: Vendor Three.js locally (self-hosted, no runtime CDN)
+        run: |
+          mkdir -p vendor
+          curl -fsSL -o vendor/three.min.js \
+            https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js
+          # sanity check: file is non-trivial JS, not an error page
+          test "$(wc -c < vendor/three.min.js)" -gt 100000
+
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
